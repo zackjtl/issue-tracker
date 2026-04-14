@@ -1,11 +1,27 @@
-FROM python:3.11-slim
+FROM python:3.11.9-slim
+
+# Force Python version
+ENV PYTHON_VERSION=3.11.9
+ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-# Install dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+# Install dependencies with specific Python version
+RUN pip install --no-cache-dir pip==23.3.2 && \
+    pip install --no-cache-dir \
+    fastapi==0.109.2 \
+    uvicorn[standard]==0.27.1 \
+    sqlalchemy==2.0.25 \
+    python-multipart==0.0.9 \
+    pydantic==2.5.3 \
+    pydantic-settings==2.1.0 \
+    python-jose[cryptography]==3.3.0 \
+    passlib[bcrypt]==1.7.4 \
+    python-dotenv==1.0.1 \
+    alembic==1.13.1 \
+    aiosqlite==0.19.0 \
+    aiofiles==23.2.1 \
+    httpx==0.26.0
 
 # Copy application code
 COPY . .
@@ -16,8 +32,5 @@ RUN mkdir -p /app/data/issues /app/data/attachments
 # Expose port
 EXPOSE 8000
 
-# Set environment variables
-ENV PYTHONUNBUFFERED=1
-
 # Run the application
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
