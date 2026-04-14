@@ -1,30 +1,23 @@
-# Multi-stage build for minimal image size
-FROM python:3.11-slim as builder
+# Alpine-based minimal image
+FROM python:3.11-alpine
 
-WORKDIR /build
-
-# Install build dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Install build dependencies for cryptography
+RUN apk add --no-cache --virtual .build-deps \
     gcc \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install Python dependencies
-COPY backend/requirements.txt .
-RUN pip install --user --no-cache-dir -r requirements.txt
-
-# Production image
-FROM python:3.11-slim
-
-# Install runtime dependencies only
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean
+    musl-dev \
+    libffi-dev \
+    openssl-dev \
+    cargo \
+    rust
 
 WORKDIR /app
 
-# Copy installed packages from builder
-COPY --from=builder /root/.local /root/.local
-ENV PATH=/root/.local/bin:$PATH
+# Install Python dependencies
+COPY backend/requirements.txt .
+RUN pip install --no-cache-dir --break-system-packages -r requirements.txt
+
+# Remove build dependencies to reduce size
+RUN apk del .build-deps
 
 # Copy application
 COPY backend/ .
