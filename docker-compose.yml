@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: issue-tracker-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data/issues:/app/data/issues
+      - ./data/attachments:/app/data/attachments
+      - ./backend/app/data:/app/app/data
+    environment:
+      - DATABASE_URL=sqlite+aiosqlite:///./app/data/issue_tracker.db
+      - ISSUES_DATA_DIR=/app/data/issues
+      - ATTACHMENTS_DIR=/app/data/attachments
+      - SECRET_KEY=dev-secret-key-change-in-production
+      - DEBUG=true
+      - CORS_ORIGINS=http://localhost:3000,http://localhost:5173,https://*.vercel.app
+      # Supabase Configuration (replace with your Zeabur values)
+      - SUPABASE_URL=${SUPABASE_URL:-}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY:-}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY:-}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: issue-tracker-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      # Supabase Configuration (replace with your Zeabur values)
+      - VITE_SUPABASE_URL=${VITE_SUPABASE_URL:-}
+      - VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY:-}
+    depends_on:
+      - backend
+
+  # Alternative: Development mode with hot reload
+  frontend-dev:
+    image: node:20-alpine
+    container_name: issue-tracker-frontend-dev
+    working_dir: /app
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+    command: npm run dev -- --host
+    environment:
+      - VITE_API_URL=http://localhost:8000
+      - VITE_SUPABASE_URL=${VITE_SUPABASE_URL:-}
+      - VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY:-}
+
+networks:
+  default:
+    name: issue-tracker-network
