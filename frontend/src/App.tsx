@@ -177,7 +177,7 @@ export default function App() {
     checkAuth();
 
     // 監聽 auth 狀態變化
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.access_token) {
         localStorage.setItem('supabase_token', session.access_token);
         setIsAuthenticated(true);

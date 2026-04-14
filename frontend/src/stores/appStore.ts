@@ -1,13 +1,14 @@
 import { create } from 'zustand';
 import type { User, Project, Issue, IssueDetail, SearchParams } from '../types';
 import { projectApi, issueApi, authApi } from '../api';
+import { supabase } from '../lib/supabase';
 
 interface AppState {
   // User
   user: User | null;
   isAuthenticated: boolean;
-  login: (username: string, password: string) => Promise<void>;
-  logout: () => void;
+  setUser: (user: User | null) => void;
+  logout: () => Promise<void>;
   fetchUser: () => Promise<void>;
 
   // Projects
@@ -42,24 +43,27 @@ interface AppState {
 export const useAppStore = create<AppState>((set, get) => ({
   // User state
   user: null,
-  isAuthenticated: !!localStorage.getItem('token'),
+  isAuthenticated: !!localStorage.getItem('supabase_token'),
 
-  login: async (username: string, password: string) => {
-    await authApi.login(username, password);
-    const user = await authApi.getMe();
-    set({ user, isAuthenticated: true });
-  },
+  setUser: (user: User | null) => set({ user }),
 
-  logout: () => {
-    authApi.logout();
+  logout: async () => {
+    await supabase.auth.signOut();
+    localStorage.removeItem('supabase_token');
     set({ user: null, isAuthenticated: false });
   },
 
   fetchUser: async () => {
-    try {
-      const user = await authApi.getMe();
-      set({ user, isAuthenticated: true });
-    } catch {
+    const token = localStorage.getItem('supabase_token');
+    if (token) {
+      try {
+        const user = await authApi.syncUser(token);
+        set({ user, isAuthenticated: true });
+      } catch {
+        localStorage.removeItem('supabase_token');
+        set({ user: null, isAuthenticated: false });
+      }
+    } else {
       set({ user: null, isAuthenticated: false });
     }
   },
