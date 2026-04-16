@@ -1,8 +1,15 @@
 import axios from 'axios';
 
-// Use environment variable for backend URL in production
-// Fall back to relative path '/api' for local development with proxy
+// Use environment variable for backend URL in production.
+// Falls back to '/api' for local development, where vite.config.ts
+// proxies /api → http://localhost:8000.
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+
+// Log the resolved base URL once at module load time so it is visible
+// in the browser console and helps diagnose CORS / misconfiguration issues.
+console.log(
+  `[API] VITE_API_URL = ${import.meta.env.VITE_API_URL ?? '(not set)'} → using baseURL: ${API_BASE_URL}`
+);
 
 const api = axios.create({
   baseURL: API_BASE_URL,
