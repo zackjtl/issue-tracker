@@ -2,12 +2,13 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 
-// NOTE: vite.config.ts runs in Node.js, so import.meta.env is NOT available
-// here. Use process.env to read variables set in the shell / .env files that
-// are loaded by Vite's own dotenv handling before this config is evaluated.
-// VITE_API_URL is read via process.env so we can decide whether to enable the
-// dev-server proxy (only needed when there is no external API URL configured).
-const viteApiUrl = process.env.VITE_API_URL;
+// Railway's edge proxy forces 'Access-Control-Allow-Origin: https://railway.com'
+// on all responses, which blocks browser requests from any other origin.
+// To work around this platform limitation during local development, the Vite
+// dev-server proxy is ALWAYS enabled so that /api requests are forwarded to
+// the local backend (http://localhost:8000) and never hit the Railway edge
+// proxy directly. VITE_API_URL is intentionally ignored here — it is only
+// relevant for production deployments where both services share the same origin.
 
 export default defineConfig({
   plugins: [react()],
@@ -18,10 +19,9 @@ export default defineConfig({
   },
   server: {
     port: 3000,
-    // Only proxy /api → localhost:8000 when VITE_API_URL is not set.
-    // When VITE_API_URL is set (e.g. https://issue-tracker.railway.app/api)
-    // the frontend makes direct requests and no proxy is needed.
-    proxy: viteApiUrl ? undefined : {
+    // Always proxy /api → local backend in development.
+    // This bypasses the Railway edge proxy CORS limitation entirely.
+    proxy: {
       '/api': {
         target: 'http://localhost:8000',
         changeOrigin: true,
