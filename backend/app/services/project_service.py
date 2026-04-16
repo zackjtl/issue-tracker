@@ -1,8 +1,12 @@
 """Project service."""
+import logging
+import traceback
 from typing import Optional, List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.models import Project, User
+
+logger = logging.getLogger(__name__)
 
 
 class ProjectService:
@@ -50,8 +54,23 @@ class ProjectService:
 
     async def list_projects(self, db: AsyncSession) -> List[Project]:
         """List all projects."""
-        result = await db.execute(select(Project).order_by(Project.path))
-        return list(result.scalars().all())
+        try:
+            logger.info("[project_service] list_projects: executing query")
+            result = await db.execute(select(Project).order_by(Project.path))
+            projects = list(result.scalars().all())
+            logger.info("[project_service] list_projects: returned %d project(s)", len(projects))
+            return projects
+        except Exception as exc:
+            logger.error(
+                "[project_service] list_projects FAILED\n"
+                "Exception type : %s\n"
+                "Exception value: %s\n"
+                "Traceback:\n%s",
+                type(exc).__name__,
+                exc,
+                traceback.format_exc(),
+            )
+            raise
 
     async def update_project(
         self,

@@ -1,4 +1,6 @@
 """Issue service."""
+import logging
+import traceback
 import uuid
 from datetime import datetime
 from typing import Optional, List, Dict, Any
@@ -6,6 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
 from app.models import Issue, IssueStatus, IssuePriority, IssueType
 from app.services.file_storage import file_storage
+
+logger = logging.getLogger(__name__)
 
 
 class IssueService:
@@ -276,25 +280,44 @@ class IssueService:
         offset: int = 0,
     ) -> List[Issue]:
         """List issues with filters."""
-        query = select(Issue)
+        try:
+            logger.info(
+                "[issue_service] list_issues: project_path=%s status=%s priority=%s "
+                "assignee_id=%s creator_id=%s issue_type=%s limit=%d offset=%d",
+                project_path, status, priority, assignee_id, creator_id, issue_type, limit, offset,
+            )
+            query = select(Issue)
 
-        if project_path:
-            query = query.where(Issue.project_path == project_path)
-        if status:
-            query = query.where(Issue.status.in_(status))
-        if priority:
-            query = query.where(Issue.priority.in_(priority))
-        if assignee_id:
-            query = query.where(Issue.assignee_id == assignee_id)
-        if creator_id:
-            query = query.where(Issue.creator_id == creator_id)
-        if issue_type:
-            query = query.where(Issue.issue_type.in_(issue_type))
+            if project_path:
+                query = query.where(Issue.project_path == project_path)
+            if status:
+                query = query.where(Issue.status.in_(status))
+            if priority:
+                query = query.where(Issue.priority.in_(priority))
+            if assignee_id:
+                query = query.where(Issue.assignee_id == assignee_id)
+            if creator_id:
+                query = query.where(Issue.creator_id == creator_id)
+            if issue_type:
+                query = query.where(Issue.issue_type.in_(issue_type))
 
-        query = query.order_by(Issue.updated_at.desc()).limit(limit).offset(offset)
+            query = query.order_by(Issue.updated_at.desc()).limit(limit).offset(offset)
 
-        result = await db.execute(query)
-        return list(result.scalars().all())
+            result = await db.execute(query)
+            issues = list(result.scalars().all())
+            logger.info("[issue_service] list_issues: returned %d issue(s)", len(issues))
+            return issues
+        except Exception as exc:
+            logger.error(
+                "[issue_service] list_issues FAILED\n"
+                "Exception type : %s\n"
+                "Exception value: %s\n"
+                "Traceback:\n%s",
+                type(exc).__name__,
+                exc,
+                traceback.format_exc(),
+            )
+            raise
 
     async def add_comment(
         self,

@@ -1,13 +1,15 @@
 """Main application."""
 import logging
 import os
+import traceback
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
 from app.core.config import settings
-from app.db.database import init_db
+from app.db.database import init_db, get_db
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -99,6 +101,32 @@ app.include_router(projects.router)
 app.include_router(issues.router)
 
 
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Catch-all handler that logs the full traceback for every unhandled
+    exception so that 500 errors are always visible in deployment logs."""
+    tb = traceback.format_exc()
+    logger.error(
+        "[UNHANDLED EXCEPTION] %s %s\n"
+        "Exception type : %s\n"
+        "Exception value: %s\n"
+        "Traceback:\n%s",
+        request.method,
+        request.url,
+        type(exc).__name__,
+        exc,
+        tb,
+    )
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": "Internal server error",
+            "error_type": type(exc).__name__,
+            "error": str(exc),
+        },
+    )
+
+
 @app.get("/")
 async def root():
     """Root endpoint."""
@@ -111,8 +139,26 @@ async def root():
 
 @app.get("/health")
 async def health():
-    """Health check."""
-    return {"status": "healthy"}
+    """Health check with database connectivity test."""
+    from sqlalchemy import text
+
+    db_status = "unknown"
+    db_error: str | None = None
+
+    try:
+        async for session in get_db():
+            await session.execute(text("SELECT 1"))
+            db_status = "connected"
+    except Exception as exc:
+        db_status = "error"
+        db_error = f"{type(exc).__name__}: {exc}"
+        logger.error("[HEALTH] Database connectivity check failed: %s", db_error)
+
+    return {
+        "status": "healthy" if db_status == "connected" else "degraded",
+        "database": db_status,
+        **({"database_error": db_error} if db_error else {}),
+    }
 
 
 @app.get("/debug/cors")
