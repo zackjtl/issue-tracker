@@ -34,11 +34,18 @@ class Settings(BaseSettings):
     # Use get_cors_origins() to obtain the split list at runtime.
     # The default covers local dev; production origins should be supplied via
     # the CORS_ORIGINS environment variable.
+    #
+    # NOTE: "https://railway.com" and "https://railway.app" were intentionally
+    # removed from the defaults — they are Railway's own marketing/dashboard
+    # domains, not the deployed app origin, and were the root cause of the
+    # wrong Access-Control-Allow-Origin header being echoed back to browsers.
+    # Add your real production frontend URL via the FRONTEND_URL env var or by
+    # extending CORS_ORIGINS in the deployment environment.
     CORS_ORIGINS: str = (
         "http://localhost:3000,"
         "http://localhost:5173,"
-        "https://railway.com,"
-        "https://railway.app"
+        "http://issue-tracker.zeabur.internal,"
+        "https://issue-tracker.zeabur.internal"
     )
 
     # Frontend URL — when set, this origin is merged into CORS_ORIGINS so a
