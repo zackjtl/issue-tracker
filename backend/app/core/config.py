@@ -29,16 +29,17 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
-    # CORS — accepts a comma-separated string via env var (pydantic-settings
-    # will split on commas automatically when the field type is List[str]).
+    # CORS — stored as a raw comma-separated string so pydantic-settings reads
+    # it directly from the environment variable without attempting JSON parsing.
+    # Use get_cors_origins() to obtain the split list at runtime.
     # The default covers local dev; production origins should be supplied via
     # the CORS_ORIGINS environment variable.
-    CORS_ORIGINS: List[str] = [
-        "http://localhost:3000",
-        "http://localhost:5173",
-        "https://railway.com",
-        "https://railway.app",
-    ]
+    CORS_ORIGINS: str = (
+        "http://localhost:3000,"
+        "http://localhost:5173,"
+        "https://railway.com,"
+        "https://railway.app"
+    )
 
     # Frontend URL — when set, this origin is merged into CORS_ORIGINS so a
     # single env var is enough for simple deployments.
@@ -51,10 +52,10 @@ class Settings(BaseSettings):
     def get_cors_origins(self) -> List[str]:
         """Return the deduplicated list of allowed CORS origins.
 
-        Merges FRONTEND_URL into CORS_ORIGINS so callers only need to
-        consult one place.
+        Splits the comma-separated CORS_ORIGINS string and merges in
+        FRONTEND_URL so callers only need to consult one place.
         """
-        origins = list(self.CORS_ORIGINS)
+        origins = [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
         if self.FRONTEND_URL and self.FRONTEND_URL not in origins:
             origins.append(self.FRONTEND_URL)
         return origins

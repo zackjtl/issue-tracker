@@ -79,7 +79,7 @@ async def debug_cors():
     deployment logs.
     """
     return {
-        "cors_origins_raw": settings.CORS_ORIGINS,
+        "cors_origins_raw": settings.CORS_ORIGINS,  # comma-separated string
         "frontend_url": settings.FRONTEND_URL,
         "effective_origins": settings.get_cors_origins(),
     }
