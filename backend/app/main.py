@@ -2,13 +2,52 @@
 import logging
 import os
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.types import ASGIApp
 from app.core.config import settings
 from app.db.database import init_db
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
+
+
+class CORSDebugMiddleware(BaseHTTPMiddleware):
+    """Middleware that logs every request's Origin header and the resulting
+    Access-Control-Allow-Origin response header.
+
+    Placed *before* CORSMiddleware in the stack (i.e. added to the app after
+    CORSMiddleware) so it wraps the full request/response cycle and can
+    inspect both the inbound Origin and the outbound CORS header that
+    CORSMiddleware ultimately sets.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        super().__init__(app)
+
+    async def dispatch(self, request: Request, call_next):
+        origin = request.headers.get("origin", "<no Origin header>")
+        logger.info(
+            "[CORS-DEBUG] %s %s  |  Origin: %s",
+            request.method,
+            request.url.path,
+            origin,
+        )
+
+        response: Response = await call_next(request)
+
+        acao = response.headers.get(
+            "access-control-allow-origin", "<header not set>"
+        )
+        logger.info(
+            "[CORS-DEBUG] %s %s  |  Origin: %s  →  Access-Control-Allow-Origin: %s",
+            request.method,
+            request.url.path,
+            origin,
+            acao,
+        )
+        return response
 
 
 @asynccontextmanager
@@ -46,6 +85,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# CORSDebugMiddleware is added AFTER CORSMiddleware so that Starlette places
+# it outermost in the middleware stack.  It therefore sees the request before
+# CORSMiddleware and the response after CORSMiddleware has set (or not set)
+# the Access-Control-Allow-Origin header — giving us a full before/after log.
+app.add_middleware(CORSDebugMiddleware)
+
 # Include routers
 from app.api import auth_supabase, projects, issues
 
@@ -82,4 +127,35 @@ async def debug_cors():
         "cors_origins_raw": settings.CORS_ORIGINS,  # comma-separated string
         "frontend_url": settings.FRONTEND_URL,
         "effective_origins": settings.get_cors_origins(),
+    }
+
+
+@app.options("/debug/cors-preflight")
+async def debug_cors_preflight(request: Request):
+    """Explicit OPTIONS endpoint for manual preflight testing.
+
+    Send a preflight request to this endpoint to inspect exactly which
+    Access-Control-Allow-Origin header the server returns for a given Origin.
+    CORSMiddleware handles the real preflight logic; this endpoint exists so
+    the route is registered and the middleware is guaranteed to run.
+
+    Example:
+        curl -i -X OPTIONS https://issue-tracker.railway.app/debug/cors-preflight \\
+             -H "Origin: http://localhost:3000" \\
+             -H "Access-Control-Request-Method: GET"
+    """
+    origin = request.headers.get("origin", "<no Origin header>")
+    logger.info("[CORS-DEBUG] Manual preflight probe  |  Origin: %s", origin)
+    # CORSMiddleware intercepts OPTIONS requests before they reach here when
+    # the route is matched, so this body is only reached for non-preflight
+    # OPTIONS calls.  Either way, return the diagnostic payload.
+    return {
+        "probe": "cors-preflight",
+        "received_origin": origin,
+        "effective_origins": settings.get_cors_origins(),
+        "note": (
+            "Check the Access-Control-Allow-Origin response header above. "
+            "If it does not match your Origin, the origin is not in the "
+            "allow-list or an upstream proxy is overwriting the header."
+        ),
     }
