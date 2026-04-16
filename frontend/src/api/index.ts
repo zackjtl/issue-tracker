@@ -1,14 +1,21 @@
 import axios from 'axios';
 
-// Use environment variable for backend URL in production.
-// Falls back to '/api' for local development, where vite.config.ts
-// proxies /api → http://localhost:8000.
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+// In development, always use '/api' so that Vite's dev-server proxy forwards
+// requests to http://localhost:8000. This sidesteps the Railway edge proxy,
+// which forces 'Access-Control-Allow-Origin: https://railway.com' and blocks
+// browser requests from any other origin.
+//
+// VITE_API_URL is kept as a production escape hatch (e.g. when both the
+// frontend and backend are deployed behind the same Railway domain and CORS
+// is no longer an issue). It is intentionally NOT used during local dev.
+const API_BASE_URL = import.meta.env.PROD
+  ? (import.meta.env.VITE_API_URL || '/api')
+  : '/api';
 
 // Log the resolved base URL once at module load time so it is visible
 // in the browser console and helps diagnose CORS / misconfiguration issues.
 console.log(
-  `[API] VITE_API_URL = ${import.meta.env.VITE_API_URL ?? '(not set)'} → using baseURL: ${API_BASE_URL}`
+  `[API] mode = ${import.meta.env.MODE}, VITE_API_URL = ${import.meta.env.VITE_API_URL ?? '(not set)'} → using baseURL: ${API_BASE_URL}`
 );
 
 const api = axios.create({
